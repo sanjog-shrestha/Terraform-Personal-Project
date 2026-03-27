@@ -99,6 +99,7 @@ VPC (10.0.0.0/16)
 ├── Private Subnet AZ-a (10.0.101.0/24) → NAT Gateway → Internet
 └── Private Subnet AZ-b (10.0.102.0/24) → NAT Gateway → Internet
 ```
+<img width="1653" height="396" alt="image" src="https://github.com/user-attachments/assets/6102b100-c285-454c-b6ed-910af35c2b4c" />
 
 ---
 

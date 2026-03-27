@@ -20,7 +20,7 @@ Region: `eu-west-2` (London) — configurable via `terraform.tfvars`.
 # 1. Authenticate to AWS
 aws configure   # or export AWS_PROFILE=<your-profile>
 
-# 2. Initialise
+# 2. Initialise (downloads providers and modules)
 terraform init
 
 # 3. Review plan
@@ -36,32 +36,48 @@ terraform apply -var-file=terraform.tfvars
 
 ```
 terraform-aws/
-├── main.tf              # Provider config, required providers, default tags
-├── variables.tf         # Input variables (region, project name, environment)
-├── outputs.tf           # Root outputs exposed after apply
-├── terraform.tfvars     # Default variable values (no secrets)
-└── .gitignore           # Excludes state files, .terraform/, secrets
+├── main.tf                        # Provider config, module calls
+├── variables.tf                   # Root input variables
+├── outputs.tf                     # Root outputs
+├── terraform.tfvars               # Default variable values (no secrets)
+├── .gitignore                     # Excludes state files, .terraform/, secrets
+└── modules/
+    └── networking/
+        ├── main.tf                # VPC, subnets, IGW, NAT Gateway, route tables
+        ├── variables.tf           # Networking input variables
+        └── outputs.tf             # Networking outputs (VPC ID, subnet IDs, etc.)
 ```
 
 ---
 
 ## Input variables
 
-| Variable       | Type   | Default     | Description                       |
-|----------------|--------|-------------|-----------------------------------|
-| `aws_region`   | string | `eu-west-2` | AWS region to deploy into         |
-| `project_name` | string | —           | Short project name (used in tags) |
-| `environment`  | string | `dev`       | One of: `dev`, `staging`, `prod`  |
+### Root
+
+| Variable              | Type         | Default                              | Description                          |
+|-----------------------|--------------|--------------------------------------|--------------------------------------|
+| `aws_region`          | string       | `eu-west-2`                          | AWS region to deploy into            |
+| `project_name`        | string       | —                                    | Short project name (used in tags)    |
+| `environment`         | string       | `dev`                                | One of: `dev`, `staging`, `prod`     |
+| `vpc_cidr`            | string       | `10.0.0.0/16`                        | CIDR block for the VPC               |
+| `public_subnet_cidrs` | list(string) | `["10.0.1.0/24","10.0.2.0/24"]`      | Public subnet CIDRs (one per AZ)     |
+| `private_subnet_cidrs`| list(string) | `["10.0.101.0/24","10.0.102.0/24"]`  | Private subnet CIDRs (one per AZ)    |
+| `availability_zones`  | list(string) | `["eu-west-2a","eu-west-2b"]`        | AZs to spread subnets across         |
+| `enable_nat_gateway`  | bool         | `true`                               | Create a NAT Gateway for private AZs |
 
 ---
 
 ## Outputs
 
-| Output         | Description             |
-|----------------|-------------------------|
-| `aws_region`   | AWS region in use       |
-| `project_name` | Active project name     |
-| `environment`  | Active environment name |
+| Output               | Description                              |
+|----------------------|------------------------------------------|
+| `aws_region`         | AWS region in use                        |
+| `project_name`       | Active project name                      |
+| `environment`        | Active environment                       |
+| `vpc_id`             | ID of the created VPC                    |
+| `public_subnet_ids`  | List of public subnet IDs                |
+| `private_subnet_ids` | List of private subnet IDs               |
+| `nat_gateway_id`     | ID of the NAT Gateway (null if disabled) |
 
 ---
 
@@ -74,34 +90,28 @@ terraform-aws/
 
 ---
 
-## Adding modules
+## Networking architecture
 
-Create a subdirectory under `modules/` and reference it from `main.tf`:
-
-```hcl
-module "networking" {
-  source = "./modules/networking"
-  # pass variables here
-}
+```
+VPC (10.0.0.0/16)
+├── Public Subnet AZ-a  (10.0.1.0/24)   → Internet Gateway → Internet
+├── Public Subnet AZ-b  (10.0.2.0/24)   → Internet Gateway → Internet
+├── Private Subnet AZ-a (10.0.101.0/24) → NAT Gateway → Internet
+└── Private Subnet AZ-b (10.0.102.0/24) → NAT Gateway → Internet
 ```
 
 ---
 
-## Environments
+## Adding future modules
 
-To manage multiple environments, create per-environment variable files:
+Reference new modules from `main.tf`, passing networking outputs as inputs:
 
-```
-environments/
-├── dev.tfvars
-├── staging.tfvars
-└── prod.tfvars
-```
-
-Then apply with:
-
-```bash
-terraform apply -var-file=environments/dev.tfvars
+```hcl
+module "security" {
+  source   = "./modules/security"
+  vpc_id   = module.networking.vpc_id
+  # ...
+}
 ```
 
 ---
@@ -109,5 +119,6 @@ terraform apply -var-file=environments/dev.tfvars
 ## Notes
 
 - **No secrets** should ever be stored in `terraform.tfvars`. Use environment variables or AWS Secrets Manager.
-- **State** is currently local. Remote state (S3 + DynamoDB) will be added in a future phase when team collaboration requires it.
+- **State** is currently local. Remote state (S3 + DynamoDB) will be added in a future phase.
 - **Tags** are automatically applied to all AWS resources via `default_tags` in the provider block.
+- **NAT Gateway** incurs AWS charges even when idle. Set `enable_nat_gateway = false` to disable in cost-sensitive environments.

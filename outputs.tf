@@ -16,3 +16,24 @@ output "environment" {
   description = "Active environment."
   value       = var.environment
 }
+
+# ----- Networking ----------------------------------
+output "vpc_id" {
+  description = "ID of the VPC."
+  value       = module.networking.vpc_id
+}
+
+output "public_subnet_ids" {
+  description = "List of public subnet IDs."
+  value       = module.networking.public_subnet_ids
+}
+
+output "private_subnet_ids" {
+  description = "List of private subnet IDs."
+  value       = module.networking.private_subnet_ids
+}
+
+output "nat_gateway_id" {
+  description = "ID of the NAT Gateway."
+  value       = module.networking.nat_gateway_id
+}

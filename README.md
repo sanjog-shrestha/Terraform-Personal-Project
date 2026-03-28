@@ -36,48 +36,79 @@ terraform apply -var-file=terraform.tfvars
 
 ```
 terraform-aws/
-├── main.tf                        # Provider config, module calls
-├── variables.tf                   # Root input variables
-├── outputs.tf                     # Root outputs
-├── terraform.tfvars               # Default variable values (no secrets)
-├── .gitignore                     # Excludes state files, .terraform/, secrets
+├── main.tf                            # Provider config, module calls
+├── variables.tf                       # Root input variables
+├── outputs.tf                         # Root outputs
+├── terraform.tfvars                   # Default variable values (no secrets)
+├── .gitignore                         # Excludes state files, .terraform/, secrets
 └── modules/
-    └── networking/
-        ├── main.tf                # VPC, subnets, IGW, NAT Gateway, route tables
-        ├── variables.tf           # Networking input variables
-        └── outputs.tf             # Networking outputs (VPC ID, subnet IDs, etc.)
+    ├── networking/
+    │   ├── main.tf                    # VPC, subnets, IGW, NAT Gateway, route tables
+    │   ├── variables.tf               # Networking input variables
+    │   └── outputs.tf                 # VPC ID, subnet IDs, IGW ID, NAT GW ID
+    └── security/
+        ├── main.tf                    # Security groups, IAM role, instance profile
+        ├── variables.tf               # Security input variables
+        └── outputs.tf                 # SG IDs, IAM role ARN, instance profile name
 ```
 
 ---
 
 ## Input variables
 
-### Root
+### General
 
-| Variable              | Type         | Default                              | Description                          |
-|-----------------------|--------------|--------------------------------------|--------------------------------------|
-| `aws_region`          | string       | `eu-west-2`                          | AWS region to deploy into            |
-| `project_name`        | string       | —                                    | Short project name (used in tags)    |
-| `environment`         | string       | `dev`                                | One of: `dev`, `staging`, `prod`     |
-| `vpc_cidr`            | string       | `10.0.0.0/16`                        | CIDR block for the VPC               |
-| `public_subnet_cidrs` | list(string) | `["10.0.1.0/24","10.0.2.0/24"]`      | Public subnet CIDRs (one per AZ)     |
-| `private_subnet_cidrs`| list(string) | `["10.0.101.0/24","10.0.102.0/24"]`  | Private subnet CIDRs (one per AZ)    |
-| `availability_zones`  | list(string) | `["eu-west-2a","eu-west-2b"]`        | AZs to spread subnets across         |
-| `enable_nat_gateway`  | bool         | `true`                               | Create a NAT Gateway for private AZs |
+| Variable       | Type   | Default     | Description                       |
+|----------------|--------|-------------|-----------------------------------|
+| `aws_region`   | string | `eu-west-2` | AWS region to deploy into         |
+| `project_name` | string | —           | Short project name (used in tags) |
+| `environment`  | string | `dev`       | One of: `dev`, `staging`, `prod`  |
+
+### Networking
+
+| Variable               | Type         | Default                               | Description                          |
+|------------------------|--------------|---------------------------------------|--------------------------------------|
+| `vpc_cidr`             | string       | `10.0.0.0/16`                         | CIDR block for the VPC               |
+| `public_subnet_cidrs`  | list(string) | `["10.0.1.0/24", "10.0.2.0/24"]`     | Public subnet CIDRs (one per AZ)     |
+| `private_subnet_cidrs` | list(string) | `["10.0.101.0/24", "10.0.102.0/24"]` | Private subnet CIDRs (one per AZ)    |
+| `availability_zones`   | list(string) | `["eu-west-2a", "eu-west-2b"]`       | AZs to spread subnets across         |
+| `enable_nat_gateway`   | bool         | `true`                                | Create a NAT Gateway for private AZs |
+
+### Security
+
+| Variable            | Type   | Default     | Description                                       |
+|---------------------|--------|-------------|---------------------------------------------------|
+| `create_bastion_sg` | bool   | `true`      | Create a bastion host security group              |
+| `trusted_ssh_cidr`  | string | `0.0.0.0/0` | CIDR allowed SSH access. Restrict in production!  |
 
 ---
 
 ## Outputs
 
+### General
+
+| Output         | Description         |
+|----------------|---------------------|
+| `aws_region`   | AWS region in use   |
+| `project_name` | Active project name |
+| `environment`  | Active environment  |
+
+### Networking
+
 | Output               | Description                              |
 |----------------------|------------------------------------------|
-| `aws_region`         | AWS region in use                        |
-| `project_name`       | Active project name                      |
-| `environment`        | Active environment                       |
 | `vpc_id`             | ID of the created VPC                    |
 | `public_subnet_ids`  | List of public subnet IDs                |
 | `private_subnet_ids` | List of private subnet IDs               |
 | `nat_gateway_id`     | ID of the NAT Gateway (null if disabled) |
+
+### Security
+
+| Output                          | Description                                     |
+|---------------------------------|-------------------------------------------------|
+| `app_security_group_id`         | ID of the application security group            |
+| `bastion_security_group_id`     | ID of the bastion security group (null if off)  |
+| `ec2_ssm_instance_profile_name` | Instance profile name for EC2 instances         |
 
 ---
 
@@ -93,25 +124,71 @@ terraform-aws/
 ## Networking architecture
 
 ```
-VPC (10.0.0.0/16)
-├── Public Subnet AZ-a  (10.0.1.0/24)   → Internet Gateway → Internet
-├── Public Subnet AZ-b  (10.0.2.0/24)   → Internet Gateway → Internet
-├── Private Subnet AZ-a (10.0.101.0/24) → NAT Gateway → Internet
-└── Private Subnet AZ-b (10.0.102.0/24) → NAT Gateway → Internet
+VPC  10.0.0.0/16
+│
+├── Public Subnet 1   10.0.1.0/24    eu-west-2a ──► Internet Gateway ──► Internet
+├── Public Subnet 2   10.0.2.0/24    eu-west-2b ──► Internet Gateway ──► Internet
+│                                                ▲
+│                               NAT Gateway placed in Public Subnet 1
+│
+├── Private Subnet 1  10.0.101.0/24  eu-west-2a ──► NAT Gateway ──► Internet (outbound only)
+└── Private Subnet 2  10.0.102.0/24  eu-west-2b ──► NAT Gateway ──► Internet (outbound only)
 ```
-<img width="1653" height="396" alt="image" src="https://github.com/user-attachments/assets/6102b100-c285-454c-b6ed-910af35c2b4c" />
+<!-- Screenshot: AWS Console → VPC Dashboard showing your VPC, subnets, and route tables -->
+
+---
+
+## Security architecture
+
+```
+VPC
+│
+├── Default Security Group ──── No rules (locked down)
+│
+├── App Security Group
+│   ├── Inbound:  TCP 80  from 0.0.0.0/0  (HTTP)
+│   ├── Inbound:  TCP 443 from 0.0.0.0/0  (HTTPS)
+│   └── Outbound: All     to  0.0.0.0/0
+│
+├── Bastion Security Group (optional)
+│   ├── Inbound:  TCP 22 from trusted_ssh_cidr
+│   └── Outbound: All    to  0.0.0.0/0
+│
+└── IAM
+    ├── Role:             ec2-ssm-role  (trust: ec2.amazonaws.com)
+    │   └── Policy:       AmazonSSMManagedInstanceCore
+    └── Instance Profile: ec2-ssm-profile
+```
+<!-- Screenshot: AWS Console → EC2 → Security Groups showing app-sg and bastion-sg inbound/outbound rules -->
+<!-- Screenshot: AWS Console → IAM → Roles showing ec2-ssm-role with AmazonSSMManagedInstanceCore attached -->
+
+---
+
+## Roadmap
+
+| Phase | Status  | Feature           | Description                                     |
+|-------|---------|-------------------|-------------------------------------------------|
+| 1     | ✅ Done | Base Provider     | AWS provider, variables, outputs, default tags  |
+| 2     | ✅ Done | Networking        | VPC, subnets, IGW, NAT Gateway, route tables    |
+| 3     | ✅ Done | Security Baseline | Security groups, IAM role, instance profile     |
+| 4     | ⏭ Next | Compute           | EC2 instances using SG and profile from Phase 3 |
+| 5     | Planned | Observability     | CloudWatch log groups, alarms, SNS topics       |
+| 6     | Planned | Remote State      | S3 + DynamoDB locking for team collaboration    |
+| 7     | Planned | CI/CD             | GitHub Actions pipeline for automated apply     |
 
 ---
 
 ## Adding future modules
 
-Reference new modules from `main.tf`, passing networking outputs as inputs:
+Reference new modules from `main.tf`, passing outputs from existing modules as inputs:
 
 ```hcl
-module "security" {
-  source   = "./modules/security"
-  vpc_id   = module.networking.vpc_id
-  # ...
+module "compute" {
+  source               = "./modules/compute"
+  vpc_id               = module.networking.vpc_id
+  subnet_ids           = module.networking.private_subnet_ids
+  security_group_id    = module.security.app_security_group_id
+  iam_instance_profile = module.security.ec2_ssm_instance_profile_name
 }
 ```
 
@@ -120,6 +197,8 @@ module "security" {
 ## Notes
 
 - **No secrets** should ever be stored in `terraform.tfvars`. Use environment variables or AWS Secrets Manager.
-- **State** is currently local. Remote state (S3 + DynamoDB) will be added in a future phase.
+- **State** is currently local. Remote state (S3 + DynamoDB) will be added in Phase 6.
 - **Tags** are automatically applied to all AWS resources via `default_tags` in the provider block.
 - **NAT Gateway** incurs AWS charges even when idle. Set `enable_nat_gateway = false` to disable in cost-sensitive environments.
+- **trusted_ssh_cidr** defaults to `0.0.0.0/0` for development. Always restrict to a specific IP or CIDR before deploying to production.
+- **SSM Session Manager** is pre-configured via the EC2 IAM role — no SSH keys or open port 22 required for instance access.

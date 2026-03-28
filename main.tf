@@ -42,3 +42,14 @@ module "networking" {
   availability_zones   = var.availability_zones
   enable_nat_gateway   = var.enable_nat_gateway
 }
+
+# ----- Security ----------------------------------
+module "security" {
+  source = "./modules/security"
+
+  project_name      = var.project_name
+  environment       = var.environment
+  vpc_id            = module.networking.vpc_id
+  create_bastion_sg = var.create_bastion_sg
+  trusted_ssh_cidr  = var.trusted_ssh_cidr
+}

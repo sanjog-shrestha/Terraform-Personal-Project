@@ -52,4 +52,16 @@ variable "enable_nat_gateway" {
   description = "Whether to create a NAT Gateway for private subnet internet access."
   type        = bool
   default     = true
+
+} # ----- Security ----------------------------------
+variable "create_bastion_sg" {
+  description = "Whether to create a bastion host security group."
+  type        = bool
+  default     = true
+}
+
+variable "trusted_ssh_cidr" {
+  description = "CIDR allowed to SSH into the bastion. Never use 0.0.0.0/0 in production."
+  type        = string
+  default     = "0.0.0.0/0"
 }

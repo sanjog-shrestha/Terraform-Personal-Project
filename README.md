@@ -134,7 +134,8 @@ VPC  10.0.0.0/16
 ├── Private Subnet 1  10.0.101.0/24  eu-west-2a ──► NAT Gateway ──► Internet (outbound only)
 └── Private Subnet 2  10.0.102.0/24  eu-west-2b ──► NAT Gateway ──► Internet (outbound only)
 ```
-<!-- Screenshot: AWS Console → VPC Dashboard showing your VPC, subnets, and route tables -->
+<img width="1666" height="427" alt="image" src="https://github.com/user-attachments/assets/137e3953-c30c-4751-a36c-b78b9f22e20f" />
+
 
 ---
 
@@ -159,8 +160,10 @@ VPC
     │   └── Policy:       AmazonSSMManagedInstanceCore
     └── Instance Profile: ec2-ssm-profile
 ```
-<!-- Screenshot: AWS Console → EC2 → Security Groups showing app-sg and bastion-sg inbound/outbound rules -->
-<!-- Screenshot: AWS Console → IAM → Roles showing ec2-ssm-role with AmazonSSMManagedInstanceCore attached -->
+<img width="1736" height="175" alt="image" src="https://github.com/user-attachments/assets/a8c97915-fe53-4a30-a824-488a865cd72a" />
+
+<img width="1590" height="658" alt="image" src="https://github.com/user-attachments/assets/341ceb1d-b936-4b3c-b108-40475786a3fd" />
+
 
 ---
 

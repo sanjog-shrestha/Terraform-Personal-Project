@@ -204,7 +204,8 @@ Launch Template  (my-project-dev-lt)
                  ├── systemctl start amazon-ssm-agent
                  └── hostnamectl set-hostname {project}-{env}
 ```
-<!-- Screenshot: AWS Console → EC2 → Launch Templates showing the template with its version and configuration details -->
+<img width="1907" height="551" alt="image" src="https://github.com/user-attachments/assets/b0412535-dbee-4d1c-bea8-7713e66d72b1" />
+
 
 ---
 

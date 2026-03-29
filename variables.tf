@@ -53,7 +53,8 @@ variable "enable_nat_gateway" {
   type        = bool
   default     = true
 
-} # ----- Security ----------------------------------
+}
+# ----- Security ----------------------------------
 variable "create_bastion_sg" {
   description = "Whether to create a bastion host security group."
   type        = bool
@@ -64,4 +65,23 @@ variable "trusted_ssh_cidr" {
   description = "CIDR allowed to SSH into the bastion. Never use 0.0.0.0/0 in production."
   type        = string
   default     = "0.0.0.0/0"
+}
+
+# ----- Compute ----------------------------------
+variable "instance_type" {
+  description = "EC2 instance type."
+  type        = string
+  default     = "t3.micro"
+}
+
+variable "root_volume_size" {
+  description = "Root EBS volume size in GB."
+  type        = number
+  default     = 20
+}
+
+variable "enable_detailed_monitoring" {
+  description = "Enable detailed CloudWatch monitoring (billed per instance)."
+  type        = bool
+  default     = false
 }

@@ -53,3 +53,16 @@ module "security" {
   create_bastion_sg = var.create_bastion_sg
   trusted_ssh_cidr  = var.trusted_ssh_cidr
 }
+
+# ---Compute ----------------------------------------------
+module "compute" {
+  source = "./modules/compute"
+
+  project_name               = var.project_name
+  environment                = var.environment
+  security_group_id          = module.security.app_security_group_id
+  iam_instance_profile_name  = module.security.ec2_ssm_instance_profile_name
+  instance_type              = var.instance_type
+  root_volume_size           = var.root_volume_size
+  enable_detailed_monitoring = var.enable_detailed_monitoring
+}

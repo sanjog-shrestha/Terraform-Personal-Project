@@ -46,10 +46,16 @@ terraform-aws/
     │   ├── main.tf                    # VPC, subnets, IGW, NAT Gateway, route tables
     │   ├── variables.tf               # Networking input variables
     │   └── outputs.tf                 # VPC ID, subnet IDs, IGW ID, NAT GW ID
-    └── security/
-        ├── main.tf                    # Security groups, IAM role, instance profile
-        ├── variables.tf               # Security input variables
-        └── outputs.tf                 # SG IDs, IAM role ARN, instance profile name
+    ├── security/
+    │   ├── main.tf                    # Security groups, IAM role, instance profile
+    │   ├── variables.tf               # Security input variables
+    │   └── outputs.tf                 # SG IDs, IAM role ARN, instance profile name
+    └── compute/
+        ├── main.tf                    # AMI data source, launch template
+        ├── variables.tf               # Compute input variables
+        ├── outputs.tf                 # Launch template ID, version, AMI ID
+        └── templates/
+            └── user_data.sh.tpl       # EC2 first-boot startup script
 ```
 
 ---
@@ -81,6 +87,14 @@ terraform-aws/
 | `create_bastion_sg` | bool   | `true`      | Create a bastion host security group              |
 | `trusted_ssh_cidr`  | string | `0.0.0.0/0` | CIDR allowed SSH access. Restrict in production!  |
 
+### Compute
+
+| Variable                    | Type   | Default    | Description                                        |
+|-----------------------------|--------|------------|----------------------------------------------------|
+| `instance_type`             | string | `t3.micro` | EC2 instance type                                  |
+| `root_volume_size`          | number | `20`       | Root EBS volume size in GB                         |
+| `enable_detailed_monitoring`| bool   | `false`    | Enable 1-min CloudWatch metrics (billed per instance) |
+
 ---
 
 ## Outputs
@@ -110,6 +124,14 @@ terraform-aws/
 | `bastion_security_group_id`     | ID of the bastion security group (null if off)  |
 | `ec2_ssm_instance_profile_name` | Instance profile name for EC2 instances         |
 
+### Compute
+
+| Output                          | Description                               |
+|---------------------------------|-------------------------------------------|
+| `launch_template_id`            | ID of the launch template                 |
+| `launch_template_latest_version`| Latest version number of the template     |
+| `ami_id`                        | Resolved AMI ID (latest Amazon Linux 2023)|
+
 ---
 
 ## Providers
@@ -135,7 +157,6 @@ VPC  10.0.0.0/16
 └── Private Subnet 2  10.0.102.0/24  eu-west-2b ──► NAT Gateway ──► Internet (outbound only)
 ```
 <img width="1666" height="427" alt="image" src="https://github.com/user-attachments/assets/137e3953-c30c-4751-a36c-b78b9f22e20f" />
-
 
 ---
 
@@ -164,20 +185,42 @@ VPC
 
 <img width="1590" height="658" alt="image" src="https://github.com/user-attachments/assets/341ceb1d-b936-4b3c-b108-40475786a3fd" />
 
+---
+
+## Compute architecture
+
+```
+Launch Template  (my-project-dev-lt)
+│
+├── AMI          Amazon Linux 2023 (latest, resolved automatically)
+├── Instance     t3.micro
+├── Storage      20 GB  gp3  encrypted
+├── IAM          ec2-ssm-profile  (SSM Session Manager access)
+├── Security     app-sg  (HTTP 80, HTTPS 443)
+├── Metadata     IMDSv2 enforced  (http_tokens = required)
+├── Monitoring   Detailed monitoring off by default
+└── User Data    user_data.sh.tpl
+                 ├── dnf update -y
+                 ├── systemctl start amazon-ssm-agent
+                 └── hostnamectl set-hostname {project}-{env}
+```
+<!-- Screenshot: AWS Console → EC2 → Launch Templates showing the template with its version and configuration details -->
 
 ---
 
 ## Roadmap
 
-| Phase | Status  | Feature           | Description                                     |
-|-------|---------|-------------------|-------------------------------------------------|
-| 1     | ✅ Done | Base Provider     | AWS provider, variables, outputs, default tags  |
-| 2     | ✅ Done | Networking        | VPC, subnets, IGW, NAT Gateway, route tables    |
-| 3     | ✅ Done | Security Baseline | Security groups, IAM role, instance profile     |
-| 4     | ⏭ Next | Compute           | EC2 instances using SG and profile from Phase 3 |
-| 5     | Planned | Observability     | CloudWatch log groups, alarms, SNS topics       |
-| 6     | Planned | Remote State      | S3 + DynamoDB locking for team collaboration    |
-| 7     | Planned | CI/CD             | GitHub Actions pipeline for automated apply     |
+| Phase | Status   | Feature            | Description                                       |
+|-------|----------|--------------------|---------------------------------------------------|
+| 1     | ✅ Done  | Base Provider      | AWS provider, variables, outputs, default tags    |
+| 2     | ✅ Done  | Networking         | VPC, subnets, IGW, NAT Gateway, route tables      |
+| 3     | ✅ Done  | Security Baseline  | Security groups, IAM role, instance profile       |
+| 4a    | ✅ Done  | Launch Template    | AMI data source, versioned template, user data    |
+| 4b    | ⏭ Next  | EC2 Instance       | Single instance referencing the launch template   |
+| 4c    | Planned  | Auto Scaling Group | ASG using the launch template for scaling         |
+| 5     | Planned  | Observability      | CloudWatch log groups, alarms, SNS topics         |
+| 6     | Planned  | Remote State       | S3 + DynamoDB locking for team collaboration      |
+| 7     | Planned  | CI/CD              | GitHub Actions pipeline for automated apply       |
 
 ---
 
@@ -187,11 +230,14 @@ Reference new modules from `main.tf`, passing outputs from existing modules as i
 
 ```hcl
 module "compute" {
-  source               = "./modules/compute"
-  vpc_id               = module.networking.vpc_id
-  subnet_ids           = module.networking.private_subnet_ids
-  security_group_id    = module.security.app_security_group_id
-  iam_instance_profile = module.security.ec2_ssm_instance_profile_name
+  source                     = "./modules/compute"
+  project_name               = var.project_name
+  environment                = var.environment
+  security_group_id          = module.security.app_security_group_id
+  iam_instance_profile_name  = module.security.ec2_ssm_instance_profile_name
+  instance_type              = var.instance_type
+  root_volume_size           = var.root_volume_size
+  enable_detailed_monitoring = var.enable_detailed_monitoring
 }
 ```
 
@@ -205,3 +251,5 @@ module "compute" {
 - **NAT Gateway** incurs AWS charges even when idle. Set `enable_nat_gateway = false` to disable in cost-sensitive environments.
 - **trusted_ssh_cidr** defaults to `0.0.0.0/0` for development. Always restrict to a specific IP or CIDR before deploying to production.
 - **SSM Session Manager** is pre-configured via the EC2 IAM role — no SSH keys or open port 22 required for instance access.
+- **IMDSv2** is enforced on all instances via the launch template metadata options, blocking SSRF-based credential theft.
+- **AMI** is resolved automatically at plan time — always the latest Amazon Linux 2023 x86_64 HVM image, no manual updates needed.

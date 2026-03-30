@@ -212,7 +212,7 @@ EC2 Instance  (my-project-dev-instance)
 └── Access       SSM Session Manager only — no public IP, no port 22
 ```
 <img width="1907" height="551" alt="image" src="https://github.com/user-attachments/assets/b0412535-dbee-4d1c-bea8-7713e66d72b1" />
-<!-- Screenshot: AWS Console → EC2 → Instances showing the running instance with its private IP, subnet, and instance ID -->
+<img width="1913" height="812" alt="image" src="https://github.com/user-attachments/assets/34aa6bdf-1644-403b-9898-0dc63a4aa97e" />
 
 ---
 

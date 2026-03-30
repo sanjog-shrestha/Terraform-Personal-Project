@@ -53,7 +53,7 @@ resource "aws_launch_template" "this" {
     enabled = var.enable_detailed_monitoring
   }
 
-  user_data = base64encode(templatefile("${path.module}/templates/user_data.sh.tpl",{
+  user_data = base64encode(templatefile("${path.module}/templates/user_data.sh.tpl", {
     project_name = var.project_name
     environment = var.environment
   }))
@@ -79,4 +79,24 @@ resource "aws_launch_template" "this" {
     lifecycle {
       create_before_destroy = true
     }
+}
+
+# ---EC2 instances ----------------------------------------------
+resource "aws_instance" "this" {
+  subnet_id = var.private_subnet_id
+
+  launch_template {
+    id = aws_launch_template.this.id 
+    version = aws_launch_template.this.latest_version
+
+    
+  }
+
+  tags = {
+      Name = "${var.project_name}-${var.environment}-instance"
+  }
+
+  lifecycle {
+    ignore_changes = [ launch_template ]
+  }
 }

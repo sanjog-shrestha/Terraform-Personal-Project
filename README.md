@@ -51,9 +51,9 @@ terraform-aws/
     │   ├── variables.tf               # Security input variables
     │   └── outputs.tf                 # SG IDs, IAM role ARN, instance profile name
     └── compute/
-        ├── main.tf                    # AMI data source, launch template
+        ├── main.tf                    # AMI data source, launch template, EC2 instance
         ├── variables.tf               # Compute input variables
-        ├── outputs.tf                 # Launch template ID, version, AMI ID
+        ├── outputs.tf                 # Launch template ID, version, AMI ID, instance ID
         └── templates/
             └── user_data.sh.tpl       # EC2 first-boot startup script
 ```
@@ -89,11 +89,11 @@ terraform-aws/
 
 ### Compute
 
-| Variable                    | Type   | Default    | Description                                        |
-|-----------------------------|--------|------------|----------------------------------------------------|
-| `instance_type`             | string | `t3.micro` | EC2 instance type                                  |
-| `root_volume_size`          | number | `20`       | Root EBS volume size in GB                         |
-| `enable_detailed_monitoring`| bool   | `false`    | Enable 1-min CloudWatch metrics (billed per instance) |
+| Variable                     | Type   | Default    | Description                                           |
+|------------------------------|--------|------------|-------------------------------------------------------|
+| `instance_type`              | string | `t3.micro` | EC2 instance type                                     |
+| `root_volume_size`           | number | `20`       | Root EBS volume size in GB                            |
+| `enable_detailed_monitoring` | bool   | `false`    | Enable 1-min CloudWatch metrics (billed per instance) |
 
 ---
 
@@ -118,19 +118,21 @@ terraform-aws/
 
 ### Security
 
-| Output                          | Description                                     |
-|---------------------------------|-------------------------------------------------|
-| `app_security_group_id`         | ID of the application security group            |
-| `bastion_security_group_id`     | ID of the bastion security group (null if off)  |
-| `ec2_ssm_instance_profile_name` | Instance profile name for EC2 instances         |
+| Output                          | Description                                    |
+|---------------------------------|------------------------------------------------|
+| `app_security_group_id`         | ID of the application security group           |
+| `bastion_security_group_id`     | ID of the bastion security group (null if off) |
+| `ec2_ssm_instance_profile_name` | Instance profile name for EC2 instances        |
 
 ### Compute
 
-| Output                          | Description                               |
-|---------------------------------|-------------------------------------------|
-| `launch_template_id`            | ID of the launch template                 |
-| `launch_template_latest_version`| Latest version number of the template     |
-| `ami_id`                        | Resolved AMI ID (latest Amazon Linux 2023)|
+| Output                          | Description                                |
+|---------------------------------|--------------------------------------------|
+| `launch_template_id`            | ID of the launch template                  |
+| `launch_template_latest_version`| Latest version number of the template      |
+| `ami_id`                        | Resolved AMI ID (latest Amazon Linux 2023) |
+| `instance_id`                   | ID of the EC2 instance                     |
+| `instance_private_ip`           | Private IP address of the EC2 instance     |
 
 ---
 
@@ -203,9 +205,14 @@ Launch Template  (my-project-dev-lt)
                  ├── dnf update -y
                  ├── systemctl start amazon-ssm-agent
                  └── hostnamectl set-hostname {project}-{env}
+
+EC2 Instance  (my-project-dev-instance)
+├── Subnet       Private Subnet 1  (10.0.101.0/24  eu-west-2a)
+├── Template     my-project-dev-lt  @ latest version
+└── Access       SSM Session Manager only — no public IP, no port 22
 ```
 <img width="1907" height="551" alt="image" src="https://github.com/user-attachments/assets/b0412535-dbee-4d1c-bea8-7713e66d72b1" />
-
+<!-- Screenshot: AWS Console → EC2 → Instances showing the running instance with its private IP, subnet, and instance ID -->
 
 ---
 
@@ -217,8 +224,8 @@ Launch Template  (my-project-dev-lt)
 | 2     | ✅ Done  | Networking         | VPC, subnets, IGW, NAT Gateway, route tables      |
 | 3     | ✅ Done  | Security Baseline  | Security groups, IAM role, instance profile       |
 | 4a    | ✅ Done  | Launch Template    | AMI data source, versioned template, user data    |
-| 4b    | ⏭ Next  | EC2 Instance       | Single instance referencing the launch template   |
-| 4c    | Planned  | Auto Scaling Group | ASG using the launch template for scaling         |
+| 4b    | ✅ Done  | EC2 Instance       | Single instance referencing the launch template   |
+| 4c    | ⏭ Next  | Auto Scaling Group | ASG using the launch template across both AZs     |
 | 5     | Planned  | Observability      | CloudWatch log groups, alarms, SNS topics         |
 | 6     | Planned  | Remote State       | S3 + DynamoDB locking for team collaboration      |
 | 7     | Planned  | CI/CD              | GitHub Actions pipeline for automated apply       |
@@ -236,6 +243,7 @@ module "compute" {
   environment                = var.environment
   security_group_id          = module.security.app_security_group_id
   iam_instance_profile_name  = module.security.ec2_ssm_instance_profile_name
+  private_subnet_id          = module.networking.private_subnet_ids[0]
   instance_type              = var.instance_type
   root_volume_size           = var.root_volume_size
   enable_detailed_monitoring = var.enable_detailed_monitoring
@@ -254,3 +262,4 @@ module "compute" {
 - **SSM Session Manager** is pre-configured via the EC2 IAM role — no SSH keys or open port 22 required for instance access.
 - **IMDSv2** is enforced on all instances via the launch template metadata options, blocking SSRF-based credential theft.
 - **AMI** is resolved automatically at plan time — always the latest Amazon Linux 2023 x86_64 HVM image, no manual updates needed.
+- **EC2 instance** will not be replaced automatically on AMI updates — use `terraform taint module.compute.aws_instance.this` to force a recycle.

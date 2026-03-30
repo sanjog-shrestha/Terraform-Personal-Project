@@ -1,11 +1,11 @@
-############################################################
-# variables.tf - Root input variables 
-############################################################
+###############################################################################
+# variables.tf – Root input variables
+###############################################################################
 
 variable "aws_region" {
   description = "AWS region to deploy resources into."
   type        = string
-  default     = "eu-west-2" # London 
+  default     = "eu-west-2"
 }
 
 variable "project_name" {
@@ -23,7 +23,7 @@ variable "environment" {
   }
 }
 
-# ----- Networking ----------------------------------
+# ── Networking ────────────────────────────────────────────────────────────
 variable "vpc_cidr" {
   description = "CIDR block for the VPC."
   type        = string
@@ -37,7 +37,7 @@ variable "public_subnet_cidrs" {
 }
 
 variable "private_subnet_cidrs" {
-  description = "CIDR blocks for pribate subnets (one per AZ)."
+  description = "CIDR blocks for private subnets (one per AZ)."
   type        = list(string)
   default     = ["10.0.101.0/24", "10.0.102.0/24"]
 }
@@ -52,9 +52,9 @@ variable "enable_nat_gateway" {
   description = "Whether to create a NAT Gateway for private subnet internet access."
   type        = bool
   default     = true
-
 }
-# ----- Security ----------------------------------
+
+# ── Security ──────────────────────────────────────────────────────────────
 variable "create_bastion_sg" {
   description = "Whether to create a bastion host security group."
   type        = bool
@@ -67,7 +67,7 @@ variable "trusted_ssh_cidr" {
   default     = "0.0.0.0/0"
 }
 
-# ----- Compute ----------------------------------
+# ── Compute ───────────────────────────────────────────────────────────────
 variable "instance_type" {
   description = "EC2 instance type."
   type        = string

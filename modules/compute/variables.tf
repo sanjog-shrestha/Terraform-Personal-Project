@@ -22,6 +22,11 @@ variable "iam_instance_profile_name" {
   type        = string
 }
 
+variable "private_subnet_id" {
+  description = "ID of the private subnet to place the EC2 instance in (from networking module)."
+  type        = string
+}
+
 variable "instance_type" {
   description = "EC2 instance type."
   type        = string

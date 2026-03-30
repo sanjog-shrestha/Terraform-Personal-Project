@@ -62,6 +62,7 @@ module "compute" {
   environment                = var.environment
   security_group_id          = module.security.app_security_group_id
   iam_instance_profile_name  = module.security.ec2_ssm_instance_profile_name
+  private_subnet_id          = module.networking.private_subnet_ids[0]
   instance_type              = var.instance_type
   root_volume_size           = var.root_volume_size
   enable_detailed_monitoring = var.enable_detailed_monitoring

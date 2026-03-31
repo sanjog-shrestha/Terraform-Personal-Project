@@ -225,7 +225,8 @@ Auto Scaling Group  (my-project-dev-asg)
 ```
 <img width="1907" height="551" alt="image" src="https://github.com/user-attachments/assets/b0412535-dbee-4d1c-bea8-7713e66d72b1" />
 <img width="1913" height="812" alt="image" src="https://github.com/user-attachments/assets/34aa6bdf-1644-403b-9898-0dc63a4aa97e" />
-<!-- Screenshot: AWS Console → EC2 → Auto Scaling Groups showing the ASG with instance count, AZ distribution, and health status -->
+<img width="1908" height="785" alt="image" src="https://github.com/user-attachments/assets/1d41f693-481b-4057-9eb6-de6285a2e27f" />
+
 
 ---
 

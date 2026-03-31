@@ -51,9 +51,9 @@ terraform-aws/
     │   ├── variables.tf               # Security input variables
     │   └── outputs.tf                 # SG IDs, IAM role ARN, instance profile name
     └── compute/
-        ├── main.tf                    # AMI data source, launch template, EC2 instance
+        ├── main.tf                    # AMI data source, launch template, EC2 instance, ASG
         ├── variables.tf               # Compute input variables
-        ├── outputs.tf                 # Launch template ID, version, AMI ID, instance ID
+        ├── outputs.tf                 # Launch template ID, instance ID, ASG name/ARN
         └── templates/
             └── user_data.sh.tpl       # EC2 first-boot startup script
 ```
@@ -94,6 +94,9 @@ terraform-aws/
 | `instance_type`              | string | `t3.micro` | EC2 instance type                                     |
 | `root_volume_size`           | number | `20`       | Root EBS volume size in GB                            |
 | `enable_detailed_monitoring` | bool   | `false`    | Enable 1-min CloudWatch metrics (billed per instance) |
+| `asg_min_size`               | number | `1`        | Minimum number of instances in the ASG                |
+| `asg_max_size`               | number | `3`        | Maximum number of instances in the ASG                |
+| `asg_desired_capacity`       | number | `1`        | Desired number of instances in the ASG                |
 
 ---
 
@@ -131,8 +134,10 @@ terraform-aws/
 | `launch_template_id`            | ID of the launch template                  |
 | `launch_template_latest_version`| Latest version number of the template      |
 | `ami_id`                        | Resolved AMI ID (latest Amazon Linux 2023) |
-| `instance_id`                   | ID of the EC2 instance                     |
-| `instance_private_ip`           | Private IP address of the EC2 instance     |
+| `instance_id`                   | ID of the standalone EC2 instance          |
+| `instance_private_ip`           | Private IP of the standalone EC2 instance  |
+| `asg_name`                      | Name of the Auto Scaling Group             |
+| `asg_arn`                       | ARN of the Auto Scaling Group              |
 
 ---
 
@@ -210,9 +215,17 @@ EC2 Instance  (my-project-dev-instance)
 ├── Subnet       Private Subnet 1  (10.0.101.0/24  eu-west-2a)
 ├── Template     my-project-dev-lt  @ latest version
 └── Access       SSM Session Manager only — no public IP, no port 22
+
+Auto Scaling Group  (my-project-dev-asg)
+├── Subnets      Private Subnet 1 (eu-west-2a) + Private Subnet 2 (eu-west-2b)
+├── Capacity     Min: 1  /  Desired: 1  /  Max: 3
+├── Health       EC2 health checks  (grace period: 120s)
+├── Refresh      Rolling strategy  (50% min healthy)
+└── Template     my-project-dev-lt  @ latest version
 ```
 <img width="1907" height="551" alt="image" src="https://github.com/user-attachments/assets/b0412535-dbee-4d1c-bea8-7713e66d72b1" />
 <img width="1913" height="812" alt="image" src="https://github.com/user-attachments/assets/34aa6bdf-1644-403b-9898-0dc63a4aa97e" />
+<!-- Screenshot: AWS Console → EC2 → Auto Scaling Groups showing the ASG with instance count, AZ distribution, and health status -->
 
 ---
 
@@ -225,8 +238,8 @@ EC2 Instance  (my-project-dev-instance)
 | 3     | ✅ Done  | Security Baseline  | Security groups, IAM role, instance profile       |
 | 4a    | ✅ Done  | Launch Template    | AMI data source, versioned template, user data    |
 | 4b    | ✅ Done  | EC2 Instance       | Single instance referencing the launch template   |
-| 4c    | ⏭ Next  | Auto Scaling Group | ASG using the launch template across both AZs     |
-| 5     | Planned  | Observability      | CloudWatch log groups, alarms, SNS topics         |
+| 4c    | ✅ Done  | Auto Scaling Group | Multi-AZ ASG with rolling instance refresh        |
+| 5     | ⏭ Next  | Observability      | CloudWatch log groups, alarms, SNS topics         |
 | 6     | Planned  | Remote State       | S3 + DynamoDB locking for team collaboration      |
 | 7     | Planned  | CI/CD              | GitHub Actions pipeline for automated apply       |
 
@@ -244,9 +257,13 @@ module "compute" {
   security_group_id          = module.security.app_security_group_id
   iam_instance_profile_name  = module.security.ec2_ssm_instance_profile_name
   private_subnet_id          = module.networking.private_subnet_ids[0]
+  private_subnet_ids         = module.networking.private_subnet_ids
   instance_type              = var.instance_type
   root_volume_size           = var.root_volume_size
   enable_detailed_monitoring = var.enable_detailed_monitoring
+  asg_min_size               = var.asg_min_size
+  asg_max_size               = var.asg_max_size
+  asg_desired_capacity       = var.asg_desired_capacity
 }
 ```
 
@@ -263,3 +280,5 @@ module "compute" {
 - **IMDSv2** is enforced on all instances via the launch template metadata options, blocking SSRF-based credential theft.
 - **AMI** is resolved automatically at plan time — always the latest Amazon Linux 2023 x86_64 HVM image, no manual updates needed.
 - **EC2 instance** will not be replaced automatically on AMI updates — use `terraform taint module.compute.aws_instance.this` to force a recycle.
+- **ASG instance refresh** handles rolling updates when the launch template changes — no manual instance replacement needed.
+- **ASG desired capacity** is managed by Terraform by default. Once CloudWatch scaling policies are added in Phase 5, AWS will manage it dynamically.

@@ -79,3 +79,13 @@ output "instance_private_ip" {
   description = "Private IP address of the EC2 instance."
   value       = module.compute.instance_private_ip
 }
+
+output "asg_name" {
+  description = "Name of the Auto Scaling Group."
+  value       = module.compute.asg_name
+}
+
+output "asg_arn" {
+  description = "ARN of the Auto Scaling Group."
+  value       = module.compute.asg_arn
+}

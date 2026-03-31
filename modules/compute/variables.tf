@@ -44,3 +44,26 @@ variable "enable_detailed_monitoring" {
   type        = bool
   default     = false
 }
+
+variable "private_subnet_ids" {
+  description = "List of private subnet IDs to spread ASG instances across (from networking module)."
+  type        = list(string)
+}
+
+variable "asg_min_size" {
+  description = "Minimum number of instances in the Auto Scaling Group."
+  type        = number
+  default     = 1
+}
+
+variable "asg_max_size" {
+  description = "Maximum number of instances in the Auto Scaling Group."
+  type        = number
+  default     = 3
+}
+
+variable "asg_desired_capacity" {
+  description = "Desired number of instances in the Auto Scaling Group."
+  type        = number
+  default     = 1
+}

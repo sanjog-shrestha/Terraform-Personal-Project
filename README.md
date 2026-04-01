@@ -253,7 +253,8 @@ CloudWatch Log Group  (/my-project/dev/app)
 ├── Retention    14 days (configurable via log_retention_days)
 └── Purpose      Central log destination for all application instances
 ```
-<!-- Screenshot: AWS Console → CloudWatch → Log Groups showing /my-project/dev/app with retention policy -->
+<img width="1912" height="512" alt="image" src="https://github.com/user-attachments/assets/8294b88e-0662-488a-9625-8fd4839ff400" />
+
 
 ---
 

@@ -50,12 +50,16 @@ terraform-aws/
     │   ├── main.tf                    # Security groups, IAM role, instance profile
     │   ├── variables.tf               # Security input variables
     │   └── outputs.tf                 # SG IDs, IAM role ARN, instance profile name
-    └── compute/
-        ├── main.tf                    # AMI data source, launch template, EC2 instance, ASG
-        ├── variables.tf               # Compute input variables
-        ├── outputs.tf                 # Launch template ID, instance ID, ASG name/ARN
-        └── templates/
-            └── user_data.sh.tpl       # EC2 first-boot startup script
+    ├── compute/
+    │   ├── main.tf                    # AMI data source, launch template, EC2 instance, ASG
+    │   ├── variables.tf               # Compute input variables
+    │   ├── outputs.tf                 # Launch template ID, instance ID, ASG name/ARN
+    │   └── templates/
+    │       └── user_data.sh.tpl       # EC2 first-boot startup script
+    └── observability/
+        ├── main.tf                    # CloudWatch Log Group
+        ├── variables.tf               # Observability input variables
+        └── outputs.tf                 # Log group name and ARN
 ```
 
 ---
@@ -98,6 +102,12 @@ terraform-aws/
 | `asg_max_size`               | number | `3`        | Maximum number of instances in the ASG                |
 | `asg_desired_capacity`       | number | `1`        | Desired number of instances in the ASG                |
 
+### Observability
+
+| Variable            | Type   | Default | Description                                             |
+|---------------------|--------|---------|---------------------------------------------------------|
+| `log_retention_days`| number | `14`    | Days to retain CloudWatch logs before automatic deletion|
+
 ---
 
 ## Outputs
@@ -138,6 +148,13 @@ terraform-aws/
 | `instance_private_ip`           | Private IP of the standalone EC2 instance  |
 | `asg_name`                      | Name of the Auto Scaling Group             |
 | `asg_arn`                       | ARN of the Auto Scaling Group              |
+
+### Observability
+
+| Output           | Description                       |
+|------------------|-----------------------------------|
+| `log_group_name` | Name of the CloudWatch log group  |
+| `log_group_arn`  | ARN of the CloudWatch log group   |
 
 ---
 
@@ -227,22 +244,35 @@ Auto Scaling Group  (my-project-dev-asg)
 <img width="1913" height="812" alt="image" src="https://github.com/user-attachments/assets/34aa6bdf-1644-403b-9898-0dc63a4aa97e" />
 <img width="1908" height="785" alt="image" src="https://github.com/user-attachments/assets/1d41f693-481b-4057-9eb6-de6285a2e27f" />
 
+---
+
+## Observability architecture
+
+```
+CloudWatch Log Group  (/my-project/dev/app)
+├── Retention    14 days (configurable via log_retention_days)
+└── Purpose      Central log destination for all application instances
+```
+<!-- Screenshot: AWS Console → CloudWatch → Log Groups showing /my-project/dev/app with retention policy -->
 
 ---
 
 ## Roadmap
 
-| Phase | Status   | Feature            | Description                                       |
-|-------|----------|--------------------|---------------------------------------------------|
-| 1     | ✅ Done  | Base Provider      | AWS provider, variables, outputs, default tags    |
-| 2     | ✅ Done  | Networking         | VPC, subnets, IGW, NAT Gateway, route tables      |
-| 3     | ✅ Done  | Security Baseline  | Security groups, IAM role, instance profile       |
-| 4a    | ✅ Done  | Launch Template    | AMI data source, versioned template, user data    |
-| 4b    | ✅ Done  | EC2 Instance       | Single instance referencing the launch template   |
-| 4c    | ✅ Done  | Auto Scaling Group | Multi-AZ ASG with rolling instance refresh        |
-| 5     | ⏭ Next  | Observability      | CloudWatch log groups, alarms, SNS topics         |
-| 6     | Planned  | Remote State       | S3 + DynamoDB locking for team collaboration      |
-| 7     | Planned  | CI/CD              | GitHub Actions pipeline for automated apply       |
+| Phase | Status   | Feature                    | Description                                        |
+|-------|----------|----------------------------|----------------------------------------------------|
+| 1     | ✅ Done  | Base Provider              | AWS provider, variables, outputs, default tags     |
+| 2     | ✅ Done  | Networking                 | VPC, subnets, IGW, NAT Gateway, route tables       |
+| 3     | ✅ Done  | Security Baseline          | Security groups, IAM role, instance profile        |
+| 4a    | ✅ Done  | Launch Template            | AMI data source, versioned template, user data     |
+| 4b    | ✅ Done  | EC2 Instance               | Single instance referencing the launch template    |
+| 4c    | ✅ Done  | Auto Scaling Group         | Multi-AZ ASG with rolling instance refresh         |
+| 5a    | ✅ Done  | CloudWatch Log Group       | Retained, named log destination for app logs       |
+| 5b    | ⏭ Next  | SNS Topic + Subscription   | Notification channel for all alarms                |
+| 5c    | Planned  | ASG Scaling Policies       | Scale-out and scale-in policies                    |
+| 5d    | Planned  | CloudWatch CPU Alarms      | CPU high/low alarms wired to scaling policies      |
+| 6     | Planned  | Remote State               | S3 + DynamoDB locking for team collaboration       |
+| 7     | Planned  | CI/CD                      | GitHub Actions pipeline for automated apply        |
 
 ---
 
@@ -251,20 +281,12 @@ Auto Scaling Group  (my-project-dev-asg)
 Reference new modules from `main.tf`, passing outputs from existing modules as inputs:
 
 ```hcl
-module "compute" {
-  source                     = "./modules/compute"
-  project_name               = var.project_name
-  environment                = var.environment
-  security_group_id          = module.security.app_security_group_id
-  iam_instance_profile_name  = module.security.ec2_ssm_instance_profile_name
-  private_subnet_id          = module.networking.private_subnet_ids[0]
-  private_subnet_ids         = module.networking.private_subnet_ids
-  instance_type              = var.instance_type
-  root_volume_size           = var.root_volume_size
-  enable_detailed_monitoring = var.enable_detailed_monitoring
-  asg_min_size               = var.asg_min_size
-  asg_max_size               = var.asg_max_size
-  asg_desired_capacity       = var.asg_desired_capacity
+module "observability" {
+  source = "./modules/observability"
+
+  project_name       = var.project_name
+  environment        = var.environment
+  log_retention_days = var.log_retention_days
 }
 ```
 
@@ -282,4 +304,5 @@ module "compute" {
 - **AMI** is resolved automatically at plan time — always the latest Amazon Linux 2023 x86_64 HVM image, no manual updates needed.
 - **EC2 instance** will not be replaced automatically on AMI updates — use `terraform taint module.compute.aws_instance.this` to force a recycle.
 - **ASG instance refresh** handles rolling updates when the launch template changes — no manual instance replacement needed.
-- **ASG desired capacity** is managed by Terraform by default. Once CloudWatch scaling policies are added in Phase 5, AWS will manage it dynamically.
+- **ASG desired capacity** is managed by Terraform by default. Once CloudWatch scaling policies are added in Phase 5c, AWS will manage it dynamically.
+- **CloudWatch log retention** defaults to 14 days. Without a retention policy, logs accumulate indefinitely — always set this explicitly.

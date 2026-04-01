@@ -103,3 +103,10 @@ variable "asg_desired_capacity" {
   type        = number
   default     = 1
 }
+
+# ── Observability ─────────────────────────────────────────────────────────
+variable "log_retention_days" {
+  description = "Number of days to retain CloudWatch logs before automatic deletion."
+  type        = number
+  default     = 14
+}

@@ -71,3 +71,12 @@ module "compute" {
   asg_max_size               = var.asg_max_size
   asg_desired_capacity       = var.asg_desired_capacity
 }
+
+# ----- Observability ----------------------------------
+module "observability" {
+  source = "./modules/observability"
+
+  project_name       = var.project_name
+  environment        = var.environment
+  log_retention_days = var.log_retention_days
+}

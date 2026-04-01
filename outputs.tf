@@ -89,3 +89,14 @@ output "asg_arn" {
   description = "ARN of the Auto Scaling Group."
   value       = module.compute.asg_arn
 }
+
+# ── Observability ─────────────────────────────────────────────────────────
+output "log_group_name" {
+  description = "Name of the CloudWatch log group."
+  value       = module.observability.log_group_name
+}
+
+output "log_group_arn" {
+  description = "ARN of the CloudWatch log group."
+  value       = module.observability.log_group_arn
+}

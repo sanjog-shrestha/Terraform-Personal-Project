@@ -261,7 +261,8 @@ SNS Topic  (my-project-dev-alarms)
                  └── Status: PendingConfirmation until email link clicked
 ```
 <img width="1912" height="512" alt="image" src="https://github.com/user-attachments/assets/8294b88e-0662-488a-9625-8fd4839ff400" />
-<!-- Screenshot: AWS Console → SNS → Topics showing my-project-dev-alarms with subscription count -->
+<img width="1810" height="537" alt="image" src="https://github.com/user-attachments/assets/e5320bfc-7b42-4d22-bae0-5856fe27d16f" />
+
 
 ---
 

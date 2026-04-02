@@ -79,4 +79,5 @@ module "observability" {
   project_name       = var.project_name
   environment        = var.environment
   log_retention_days = var.log_retention_days
+  alarm_email        = var.alarm_email
 }

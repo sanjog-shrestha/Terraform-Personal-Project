@@ -17,3 +17,9 @@ variable "log_retention_days" {
   type        = number
   default     = 14
 }
+
+variable "alarm_email" {
+  description = "Email address for alarm notifications. Leave empty to skip subscription."
+  type        = string
+  default     = ""
+}

@@ -100,3 +100,8 @@ output "log_group_arn" {
   description = "ARN of the CloudWatch log group."
   value       = module.observability.log_group_arn
 }
+
+output "sns_topic_arn" {
+  description = "ARN of the SNS alarm topic."
+  value       = module.observability.sns_topic_arn
+}

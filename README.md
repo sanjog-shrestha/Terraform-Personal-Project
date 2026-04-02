@@ -57,9 +57,9 @@ terraform-aws/
     │   └── templates/
     │       └── user_data.sh.tpl       # EC2 first-boot startup script
     └── observability/
-        ├── main.tf                    # CloudWatch Log Group
+        ├── main.tf                    # CloudWatch Log Group, SNS topic + subscription
         ├── variables.tf               # Observability input variables
-        └── outputs.tf                 # Log group name and ARN
+        └── outputs.tf                 # Log group name/ARN, SNS topic ARN/name
 ```
 
 ---
@@ -96,7 +96,7 @@ terraform-aws/
 | Variable                     | Type   | Default    | Description                                           |
 |------------------------------|--------|------------|-------------------------------------------------------|
 | `instance_type`              | string | `t3.micro` | EC2 instance type                                     |
-| `root_volume_size`           | number | `20`       | Root EBS volume size in GB                            |
+| `root_volume_size`           | number | `30`       | Root EBS volume size in GB (min 30 for AL2023)        |
 | `enable_detailed_monitoring` | bool   | `false`    | Enable 1-min CloudWatch metrics (billed per instance) |
 | `asg_min_size`               | number | `1`        | Minimum number of instances in the ASG                |
 | `asg_max_size`               | number | `3`        | Maximum number of instances in the ASG                |
@@ -104,9 +104,10 @@ terraform-aws/
 
 ### Observability
 
-| Variable            | Type   | Default | Description                                             |
-|---------------------|--------|---------|---------------------------------------------------------|
-| `log_retention_days`| number | `14`    | Days to retain CloudWatch logs before automatic deletion|
+| Variable             | Type   | Default | Description                                              |
+|----------------------|--------|---------|----------------------------------------------------------|
+| `log_retention_days` | number | `14`    | Days to retain CloudWatch logs before automatic deletion |
+| `alarm_email`        | string | `""`    | Email for alarm notifications. Leave empty to skip       |
 
 ---
 
@@ -151,10 +152,11 @@ terraform-aws/
 
 ### Observability
 
-| Output           | Description                       |
-|------------------|-----------------------------------|
-| `log_group_name` | Name of the CloudWatch log group  |
-| `log_group_arn`  | ARN of the CloudWatch log group   |
+| Output           | Description                      |
+|------------------|----------------------------------|
+| `log_group_name` | Name of the CloudWatch log group |
+| `log_group_arn`  | ARN of the CloudWatch log group  |
+| `sns_topic_arn`  | ARN of the SNS alarm topic       |
 
 ---
 
@@ -218,7 +220,7 @@ Launch Template  (my-project-dev-lt)
 │
 ├── AMI          Amazon Linux 2023 (latest, resolved automatically)
 ├── Instance     t3.micro
-├── Storage      20 GB  gp3  encrypted
+├── Storage      30 GB  gp3  encrypted  (min 30 GB required by AL2023 AMI)
 ├── IAM          ec2-ssm-profile  (SSM Session Manager access)
 ├── Security     app-sg  (HTTP 80, HTTPS 443)
 ├── Metadata     IMDSv2 enforced  (http_tokens = required)
@@ -252,9 +254,14 @@ Auto Scaling Group  (my-project-dev-asg)
 CloudWatch Log Group  (/my-project/dev/app)
 ├── Retention    14 days (configurable via log_retention_days)
 └── Purpose      Central log destination for all application instances
+
+SNS Topic  (my-project-dev-alarms)
+├── Purpose      Single notification channel for all CloudWatch alarms
+└── Subscribers  Email (optional — set alarm_email to activate)
+                 └── Status: PendingConfirmation until email link clicked
 ```
 <img width="1912" height="512" alt="image" src="https://github.com/user-attachments/assets/8294b88e-0662-488a-9625-8fd4839ff400" />
-
+<!-- Screenshot: AWS Console → SNS → Topics showing my-project-dev-alarms with subscription count -->
 
 ---
 
@@ -269,8 +276,8 @@ CloudWatch Log Group  (/my-project/dev/app)
 | 4b    | ✅ Done  | EC2 Instance               | Single instance referencing the launch template    |
 | 4c    | ✅ Done  | Auto Scaling Group         | Multi-AZ ASG with rolling instance refresh         |
 | 5a    | ✅ Done  | CloudWatch Log Group       | Retained, named log destination for app logs       |
-| 5b    | ⏭ Next  | SNS Topic + Subscription   | Notification channel for all alarms                |
-| 5c    | Planned  | ASG Scaling Policies       | Scale-out and scale-in policies                    |
+| 5b    | ✅ Done  | SNS Topic + Subscription   | Notification channel for all alarms                |
+| 5c    | ⏭ Next  | ASG Scaling Policies       | Scale-out and scale-in policies                    |
 | 5d    | Planned  | CloudWatch CPU Alarms      | CPU high/low alarms wired to scaling policies      |
 | 6     | Planned  | Remote State               | S3 + DynamoDB locking for team collaboration       |
 | 7     | Planned  | CI/CD                      | GitHub Actions pipeline for automated apply        |
@@ -288,6 +295,7 @@ module "observability" {
   project_name       = var.project_name
   environment        = var.environment
   log_retention_days = var.log_retention_days
+  alarm_email        = var.alarm_email
 }
 ```
 
@@ -303,7 +311,9 @@ module "observability" {
 - **SSM Session Manager** is pre-configured via the EC2 IAM role — no SSH keys or open port 22 required for instance access.
 - **IMDSv2** is enforced on all instances via the launch template metadata options, blocking SSRF-based credential theft.
 - **AMI** is resolved automatically at plan time — always the latest Amazon Linux 2023 x86_64 HVM image, no manual updates needed.
+- **root_volume_size** minimum is 30 GB — the AL2023 AMI snapshot requires at least 30 GB; values below this will cause `terraform apply` to fail.
 - **EC2 instance** will not be replaced automatically on AMI updates — use `terraform taint module.compute.aws_instance.this` to force a recycle.
 - **ASG instance refresh** handles rolling updates when the launch template changes — no manual instance replacement needed.
 - **ASG desired capacity** is managed by Terraform by default. Once CloudWatch scaling policies are added in Phase 5c, AWS will manage it dynamically.
 - **CloudWatch log retention** defaults to 14 days. Without a retention policy, logs accumulate indefinitely — always set this explicitly.
+- **SNS email subscription** requires confirmation — AWS sends a confirmation email after `terraform apply`. No notifications are delivered until the link is clicked.

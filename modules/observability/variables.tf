@@ -23,3 +23,14 @@ variable "alarm_email" {
   type        = string
   default     = ""
 }
+
+variable "asg_name" {
+  description = "Name of the Auto Scaling Group to attach scaling policies to (from compute module)."
+  type        = string
+}
+
+variable "scaling_cooldown" {
+  description = "Seconds to wait after a scaling action before another can trigger."
+  type        = number
+  default     = 120
+}

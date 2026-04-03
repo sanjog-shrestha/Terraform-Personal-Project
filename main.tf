@@ -80,4 +80,6 @@ module "observability" {
   environment        = var.environment
   log_retention_days = var.log_retention_days
   alarm_email        = var.alarm_email
+  asg_name           = module.compute.asg_name
+  scaling_cooldown   = var.scaling_cooldown
 }

@@ -116,3 +116,9 @@ variable "alarm_email" {
   type        = string
   default     = ""
 }
+
+variable "scaling_cooldown" {
+  description = "Seconds to wait after a scaling action before another can trigger."
+  type        = number
+  default     = 120
+}

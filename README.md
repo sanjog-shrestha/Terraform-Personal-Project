@@ -57,9 +57,9 @@ terraform-aws/
     │   └── templates/
     │       └── user_data.sh.tpl       # EC2 first-boot startup script
     └── observability/
-        ├── main.tf                    # CloudWatch Log Group, SNS topic + subscription
+        ├── main.tf                    # Log group, SNS topic, ASG scaling policies
         ├── variables.tf               # Observability input variables
-        └── outputs.tf                 # Log group name/ARN, SNS topic ARN/name
+        └── outputs.tf                 # Log group, SNS topic, scaling policy ARNs
 ```
 
 ---
@@ -108,6 +108,7 @@ terraform-aws/
 |----------------------|--------|---------|----------------------------------------------------------|
 | `log_retention_days` | number | `14`    | Days to retain CloudWatch logs before automatic deletion |
 | `alarm_email`        | string | `""`    | Email for alarm notifications. Leave empty to skip       |
+| `scaling_cooldown`   | number | `120`   | Seconds between scaling actions to prevent oscillation   |
 
 ---
 
@@ -152,11 +153,13 @@ terraform-aws/
 
 ### Observability
 
-| Output           | Description                      |
-|------------------|----------------------------------|
-| `log_group_name` | Name of the CloudWatch log group |
-| `log_group_arn`  | ARN of the CloudWatch log group  |
-| `sns_topic_arn`  | ARN of the SNS alarm topic       |
+| Output                  | Description                                          |
+|-------------------------|------------------------------------------------------|
+| `log_group_name`        | Name of the CloudWatch log group                     |
+| `log_group_arn`         | ARN of the CloudWatch log group                      |
+| `sns_topic_arn`         | ARN of the SNS alarm topic                           |
+| `scale_out_policy_arn`  | ARN of the scale-out policy (used by CPU high alarm) |
+| `scale_in_policy_arn`   | ARN of the scale-in policy (used by CPU low alarm)   |
 
 ---
 
@@ -259,10 +262,14 @@ SNS Topic  (my-project-dev-alarms)
 ├── Purpose      Single notification channel for all CloudWatch alarms
 └── Subscribers  Email (optional — set alarm_email to activate)
                  └── Status: PendingConfirmation until email link clicked
+
+ASG Scaling Policies
+├── scale-out    +1 instance  |  cooldown: 120s  |  triggered by CPU high alarm (Phase 5d)
+└── scale-in     -1 instance  |  cooldown: 120s  |  triggered by CPU low alarm  (Phase 5d)
 ```
 <img width="1912" height="512" alt="image" src="https://github.com/user-attachments/assets/8294b88e-0662-488a-9625-8fd4839ff400" />
 <img width="1810" height="537" alt="image" src="https://github.com/user-attachments/assets/e5320bfc-7b42-4d22-bae0-5856fe27d16f" />
-
+<!-- Screenshot: AWS Console → EC2 → Auto Scaling Groups → Automatic scaling tab showing scale-out and scale-in policies -->
 
 ---
 
@@ -278,8 +285,8 @@ SNS Topic  (my-project-dev-alarms)
 | 4c    | ✅ Done  | Auto Scaling Group         | Multi-AZ ASG with rolling instance refresh         |
 | 5a    | ✅ Done  | CloudWatch Log Group       | Retained, named log destination for app logs       |
 | 5b    | ✅ Done  | SNS Topic + Subscription   | Notification channel for all alarms                |
-| 5c    | ⏭ Next  | ASG Scaling Policies       | Scale-out and scale-in policies                    |
-| 5d    | Planned  | CloudWatch CPU Alarms      | CPU high/low alarms wired to scaling policies      |
+| 5c    | ✅ Done  | ASG Scaling Policies       | Scale-out and scale-in policies                    |
+| 5d    | ⏭ Next  | CloudWatch CPU Alarms      | CPU high/low alarms wired to policies and SNS      |
 | 6     | Planned  | Remote State               | S3 + DynamoDB locking for team collaboration       |
 | 7     | Planned  | CI/CD                      | GitHub Actions pipeline for automated apply        |
 
@@ -297,6 +304,8 @@ module "observability" {
   environment        = var.environment
   log_retention_days = var.log_retention_days
   alarm_email        = var.alarm_email
+  asg_name           = module.compute.asg_name
+  scaling_cooldown   = var.scaling_cooldown
 }
 ```
 
@@ -315,6 +324,7 @@ module "observability" {
 - **root_volume_size** minimum is 30 GB — the AL2023 AMI snapshot requires at least 30 GB; values below this will cause `terraform apply` to fail.
 - **EC2 instance** will not be replaced automatically on AMI updates — use `terraform taint module.compute.aws_instance.this` to force a recycle.
 - **ASG instance refresh** handles rolling updates when the launch template changes — no manual instance replacement needed.
-- **ASG desired capacity** is managed by Terraform by default. Once CloudWatch scaling policies are added in Phase 5c, AWS will manage it dynamically.
+- **ASG desired capacity** will be managed dynamically by AWS once CloudWatch alarms are added in Phase 5d.
 - **CloudWatch log retention** defaults to 14 days. Without a retention policy, logs accumulate indefinitely — always set this explicitly.
 - **SNS email subscription** requires confirmation — AWS sends a confirmation email after `terraform apply`. No notifications are delivered until the link is clicked.
+- **scaling_cooldown** defaults to 120 seconds — prevents rapid oscillation between scale-out and scale-in during transient CPU spikes.

@@ -82,4 +82,6 @@ module "observability" {
   alarm_email        = var.alarm_email
   asg_name           = module.compute.asg_name
   scaling_cooldown   = var.scaling_cooldown
+  cpu_high_threshold = var.cpu_high_threshold
+  cpu_low_threshold  = var.cpu_low_threshold
 }

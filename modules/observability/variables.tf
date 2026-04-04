@@ -34,3 +34,15 @@ variable "scaling_cooldown" {
   type        = number
   default     = 120
 }
+
+variable "cpu_high_threshold" {
+  description = "CPU utilisation % that triggers the scale-out alarm."
+  type        = number
+  default     = 70
+}
+
+variable "cpu_low_threshold" {
+  description = "CPU utilisation % that triggers the scale-in alarm."
+  type        = number
+  default     = 20
+}

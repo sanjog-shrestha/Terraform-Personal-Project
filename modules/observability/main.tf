@@ -47,3 +47,59 @@ resource "aws_autoscaling_policy" "scale_in" {
   adjustment_type        = "ChangeInCapacity"
   cooldown               = var.scaling_cooldown
 }
+
+# ── CloudWatch Alarm — CPU High ───────────────────────────────────────────
+resource "aws_cloudwatch_metric_alarm" "cpu_high" {
+  alarm_name          = "${var.project_name}-${var.environment}-cpu-high"
+  alarm_description   = "CPU above ${var.cpu_high_threshold}% - scale out"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 2
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/EC2"
+  period              = 120
+  statistic           = "Average"
+  threshold           = var.cpu_high_threshold
+
+  dimensions = {
+    AutoScalingGroupName = var.asg_name
+  }
+
+  alarm_actions = [
+    aws_sns_topic.alarms.arn,
+    aws_autoscaling_policy.scale_out.arn
+  ]
+
+  ok_actions = [aws_sns_topic.alarms.arn]
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-cpu-high"
+  }
+}
+
+# ── CloudWatch Alarm — CPU Low ───────────────────────────────────────────
+resource "aws_cloudwatch_metric_alarm" "cpu_low" {
+  alarm_name          = "${var.project_name}-${var.environment}-cpu-low"
+  alarm_description   = "CPU above ${var.cpu_high_threshold}% - scale in"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/EC2"
+  period              = 120
+  statistic           = "Average"
+  threshold           = var.cpu_high_threshold
+
+  dimensions = {
+    AutoScalingGroupName = var.asg_name
+  }
+
+  alarm_actions = [
+    aws_sns_topic.alarms.arn,
+    aws_autoscaling_policy.scale_out.arn
+  ]
+
+  ok_actions = [aws_sns_topic.alarms.arn]
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-cpu-low"
+  }
+}

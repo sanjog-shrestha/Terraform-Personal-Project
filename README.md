@@ -280,6 +280,7 @@ CloudWatch CPU Alarms
 <img width="1912" height="512" alt="image" src="https://github.com/user-attachments/assets/8294b88e-0662-488a-9625-8fd4839ff400" />
 <img width="1810" height="537" alt="image" src="https://github.com/user-attachments/assets/e5320bfc-7b42-4d22-bae0-5856fe27d16f" />
 <img width="1747" height="465" alt="image" src="https://github.com/user-attachments/assets/8d2fd17d-7512-4723-a6ed-fe429b99100f" />
+<img width="1918" height="307" alt="image" src="https://github.com/user-attachments/assets/5c3ebb0d-4569-4405-a42b-33c5325afde5" />
 
 
 ---

@@ -36,7 +36,7 @@ terraform apply -var-file=terraform.tfvars
 
 ```
 terraform-aws/
-├── main.tf                            # Provider config, module calls
+├── main.tf                            # Provider config, module calls, backend block
 ├── variables.tf                       # Root input variables
 ├── outputs.tf                         # Root outputs
 ├── terraform.tfvars                   # Default variable values (no secrets)
@@ -56,10 +56,14 @@ terraform-aws/
     │   ├── outputs.tf                 # Launch template ID, instance ID, ASG name/ARN
     │   └── templates/
     │       └── user_data.sh.tpl       # EC2 first-boot startup script
-    └── observability/
-        ├── main.tf                    # Log group, SNS topic, ASG scaling policies, CPU alarms
-        ├── variables.tf               # Observability input variables
-        └── outputs.tf                 # Log group, SNS topic, scaling policy and alarm ARNs
+    ├── observability/
+    │   ├── main.tf                    # Log group, SNS topic, scaling policies, CPU alarms
+    │   ├── variables.tf               # Observability input variables
+    │   └── outputs.tf                 # Log group, SNS topic, scaling policy and alarm ARNs
+    └── remote-state/
+        ├── main.tf                    # S3 bucket, versioning, encryption, DynamoDB lock table
+        ├── variables.tf               # Remote state input variables
+        └── outputs.tf                 # Bucket name, DynamoDB table name
 ```
 
 ---
@@ -106,11 +110,11 @@ terraform-aws/
 
 | Variable             | Type   | Default | Description                                              |
 |----------------------|--------|---------|----------------------------------------------------------|
-| `log_retention_days`   | number | `14`  | Days to retain CloudWatch logs before automatic deletion |
-| `alarm_email`          | string | `""`  | Email for alarm notifications. Leave empty to skip       |
-| `scaling_cooldown`     | number | `120` | Seconds between scaling actions to prevent oscillation   |
-| `cpu_high_threshold`   | number | `70`  | CPU % above which the scale-out alarm fires              |
-| `cpu_low_threshold`    | number | `20`  | CPU % below which the scale-in alarm fires               |
+| `log_retention_days` | number | `14`    | Days to retain CloudWatch logs before automatic deletion |
+| `alarm_email`        | string | `""`    | Email for alarm notifications. Leave empty to skip       |
+| `scaling_cooldown`   | number | `120`   | Seconds between scaling actions to prevent oscillation   |
+| `cpu_high_threshold` | number | `70`    | CPU % above which the scale-out alarm fires              |
+| `cpu_low_threshold`  | number | `20`    | CPU % below which the scale-in alarm fires               |
 
 ---
 
@@ -164,6 +168,13 @@ terraform-aws/
 | `scale_in_policy_arn`   | ARN of the scale-in policy (used by CPU low alarm)   |
 | `cpu_high_alarm_arn`    | ARN of the CPU high CloudWatch alarm                 |
 | `cpu_low_alarm_arn`     | ARN of the CPU low CloudWatch alarm                  |
+
+### Remote State
+
+| Output                | Description                                          |
+|-----------------------|------------------------------------------------------|
+| `state_bucket_name`   | S3 bucket name — copy into the backend block         |
+| `state_dynamodb_table`| DynamoDB table name — copy into the backend block    |
 
 ---
 
@@ -282,6 +293,44 @@ CloudWatch CPU Alarms
 <img width="1747" height="465" alt="image" src="https://github.com/user-attachments/assets/8d2fd17d-7512-4723-a6ed-fe429b99100f" />
 <img width="1918" height="307" alt="image" src="https://github.com/user-attachments/assets/5c3ebb0d-4569-4405-a42b-33c5325afde5" />
 
+---
+
+## Remote state architecture
+
+```
+S3 Bucket  (my-project-dev-tfstate-<random>)
+├── Versioning   Enabled — every state change is recoverable
+├── Encryption   AES-256 server-side encryption at rest
+├── Public access Fully blocked — all four block settings enabled
+└── force_destroy false — bucket must be manually emptied before deletion
+
+DynamoDB Table  (my-project-dev-tfstate-lock)
+├── Hash key     LockID (string)
+├── Billing      PAY_PER_REQUEST — no capacity planning required
+└── Purpose      Prevents concurrent terraform apply from corrupting state
+```
+<!-- Screenshot: AWS Console → S3 showing the tfstate bucket with versioning enabled -->
+<!-- Screenshot: AWS Console → DynamoDB → Tables showing the tfstate-lock table -->
+
+### Activating the backend (run once after first apply)
+
+```bash
+# Step 1 — Get the bucket and table names from outputs
+terraform output state_bucket_name
+terraform output state_dynamodb_table
+
+# Step 2 — Uncomment and fill in the backend block in main.tf:
+# backend "s3" {
+#   bucket         = "<state_bucket_name>"
+#   key            = "global/terraform.tfstate"
+#   region         = "eu-west-2"
+#   dynamodb_table = "<state_dynamodb_table>"
+#   encrypt        = true
+# }
+
+# Step 3 — Migrate local state to S3
+terraform init -migrate-state
+```
 
 ---
 
@@ -299,8 +348,8 @@ CloudWatch CPU Alarms
 | 5b    | ✅ Done  | SNS Topic + Subscription   | Notification channel for all alarms                |
 | 5c    | ✅ Done  | ASG Scaling Policies       | Scale-out and scale-in policies                    |
 | 5d    | ✅ Done  | CloudWatch CPU Alarms      | CPU high/low alarms wired to policies and SNS      |
-| 6     | ⏭ Next  | Remote State               | S3 + DynamoDB locking for team collaboration       |
-| 7     | Planned  | CI/CD                      | GitHub Actions pipeline for automated apply        |
+| 6     | ✅ Done  | Remote State               | S3 + DynamoDB locking for team collaboration       |
+| 7     | ⏭ Next  | CI/CD                      | GitHub Actions pipeline for automated apply        |
 
 ---
 
@@ -328,7 +377,7 @@ module "observability" {
 ## Notes
 
 - **No secrets** should ever be stored in `terraform.tfvars`. Use environment variables or AWS Secrets Manager.
-- **State** is currently local. Remote state (S3 + DynamoDB) will be added in Phase 6.
+- **State** is stored remotely in S3 with DynamoDB locking. Run `terraform init -migrate-state` after uncommenting the backend block.
 - **Tags** are automatically applied to all AWS resources via `default_tags` in the provider block.
 - **NAT Gateway** incurs AWS charges even when idle. Set `enable_nat_gateway = false` to disable in cost-sensitive environments.
 - **trusted_ssh_cidr** defaults to `0.0.0.0/0` for development. Always restrict to a specific IP or CIDR before deploying to production.
@@ -344,3 +393,5 @@ module "observability" {
 - **scaling_cooldown** defaults to 120 seconds — prevents rapid oscillation between scale-out and scale-in during transient CPU spikes.
 - **cpu_high_threshold** defaults to 70% — CPU must exceed this for 4 consecutive minutes (2 × 2-min periods) before scale-out fires.
 - **cpu_low_threshold** defaults to 20% — the 50-point gap between high and low thresholds creates a hysteresis band that prevents continuous scale-out/scale-in oscillation.
+- **S3 state bucket** has `force_destroy = false` — it must be manually emptied before `terraform destroy` can delete it, preventing accidental loss of state history.
+- **State migration** is a one-time operation — once migrated to S3, do not delete the backend block or state will revert to local.

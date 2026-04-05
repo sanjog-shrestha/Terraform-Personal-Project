@@ -105,3 +105,14 @@ output "sns_topic_arn" {
   description = "ARN of the SNS alarm topic."
   value       = module.observability.sns_topic_arn
 }
+
+# ── Remote State ──────────────────────────────────────────────────────────
+output "state_bucket_name" {
+  description = "S3 state bucket name — copy into the backend block."
+  value       = module.remote_state.bucket_name
+}
+
+output "state_dynamodb_table" {
+  description = "DynamoDB lock table name — copy into the backend block."
+  value       = module.remote_state.dynamodb_table_name
+}

@@ -330,9 +330,9 @@ terraform output state_dynamodb_table
 
 # Step 3 — Migrate local state to S3
 terraform init -migrate-state
+```
 <img width="1900" height="351" alt="image" src="https://github.com/user-attachments/assets/cf53e27d-a798-4074-9777-27b5683a9624" />
 
-```
 
 ---
 

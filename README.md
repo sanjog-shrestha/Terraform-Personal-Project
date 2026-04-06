@@ -36,11 +36,14 @@ terraform apply -var-file=terraform.tfvars
 
 ```
 terraform-aws/
+├── .github/
+│   └── workflows/
+│       └── terraform.yml              # CI/CD — fmt, init, validate, plan, apply
 ├── main.tf                            # Provider config, module calls, backend block
 ├── variables.tf                       # Root input variables
 ├── outputs.tf                         # Root outputs
 ├── terraform.tfvars                   # Default variable values (no secrets)
-├── .gitignore                         # Excludes state files, .terraform/, secrets
+├── .gitignore                         # Excludes state files, .terraform/, tfplan, secrets
 └── modules/
     ├── networking/
     │   ├── main.tf                    # VPC, subnets, IGW, NAT Gateway, route tables
@@ -171,10 +174,10 @@ terraform-aws/
 
 ### Remote State
 
-| Output                | Description                                          |
-|-----------------------|------------------------------------------------------|
-| `state_bucket_name`   | S3 bucket name — copy into the backend block         |
-| `state_dynamodb_table`| DynamoDB table name — copy into the backend block    |
+| Output                  | Description                                       |
+|-------------------------|---------------------------------------------------|
+| `state_bucket_name`     | S3 bucket name — copy into the backend block      |
+| `state_dynamodb_table`  | DynamoDB table name — copy into the backend block |
 
 ---
 
@@ -333,6 +336,41 @@ terraform init -migrate-state
 ```
 <img width="1900" height="351" alt="image" src="https://github.com/user-attachments/assets/cf53e27d-a798-4074-9777-27b5683a9624" />
 
+---
+
+## CI/CD pipeline
+
+```
+Pull Request opened / updated
+│
+├── fmt check    — fails if any .tf file needs formatting
+├── init         — downloads providers, connects to S3 backend
+├── validate     — checks syntax and type correctness
+├── plan         — generates execution plan
+└── PR comment   — posts fmt/init/validate/plan results + collapsible plan output
+
+PR merged to main
+│
+├── fmt check
+├── init
+├── validate
+├── plan         — saves plan to tfplan binary
+└── apply        — applies the saved tfplan automatically
+```
+
+### Required GitHub Secrets
+
+Navigate to **Settings → Secrets and variables → Actions** and add:
+
+| Secret                  | Value                       |
+|-------------------------|-----------------------------|
+| `AWS_ACCESS_KEY_ID`     | IAM access key ID           |
+| `AWS_SECRET_ACCESS_KEY` | IAM secret access key       |
+| `AWS_REGION`            | `eu-west-2`                 |
+| `TF_VAR_project_name`   | `my-project`                |
+| `TF_VAR_environment`    | `dev`                       |
+
+<!-- Screenshot: GitHub → Actions tab showing a completed pipeline run with all steps green -->
 
 ---
 
@@ -351,7 +389,7 @@ terraform init -migrate-state
 | 5c    | ✅ Done  | ASG Scaling Policies       | Scale-out and scale-in policies                    |
 | 5d    | ✅ Done  | CloudWatch CPU Alarms      | CPU high/low alarms wired to policies and SNS      |
 | 6     | ✅ Done  | Remote State               | S3 + DynamoDB locking for team collaboration       |
-| 7     | ⏭ Next  | CI/CD                      | GitHub Actions pipeline for automated apply        |
+| 7     | ✅ Done  | CI/CD                      | GitHub Actions pipeline for automated plan/apply   |
 
 ---
 
@@ -397,3 +435,5 @@ module "observability" {
 - **cpu_low_threshold** defaults to 20% — the 50-point gap between high and low thresholds creates a hysteresis band that prevents continuous scale-out/scale-in oscillation.
 - **S3 state bucket** has `force_destroy = false` — it must be manually emptied before `terraform destroy` can delete it, preventing accidental loss of state history.
 - **State migration** is a one-time operation — once migrated to S3, do not delete the backend block or state will revert to local.
+- **CI/CD pipeline** runs `terraform fmt -check` on every push — run `terraform fmt -recursive` locally before pushing to avoid pipeline failures.
+- **`tfplan` binary** is excluded from git via `.gitignore` — it can contain sensitive values from state and should never be committed.

@@ -24,7 +24,7 @@ terraform {
   #         terraform init -migrate-state
   # ──────────────────────────────────────────────────────────────────────
   backend "s3" {
-    bucket         = "my-project-dev-tfstate-0f40ad69"
+    bucket         = "my-project-dev-tfstate-63329532"
     key            = "global/terraform.tfstate"
     region         = "eu-west-2"
     dynamodb_table = "my-project-dev-tfstate-lock"

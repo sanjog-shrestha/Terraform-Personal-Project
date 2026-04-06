@@ -23,13 +23,13 @@ terraform {
   # Step 3: Uncomment the backend block below, fill in the values, then run:
   #         terraform init -migrate-state
   # ──────────────────────────────────────────────────────────────────────
-  #backend "s3" {
-    #bucket         = "my-project-dev-tfstate-0f40ad69"
-    #key            = "global/terraform.tfstate"
-    #region         = "eu-west-2"
-    #dynamodb_table = "my-project-dev-tfstate-lock"
-    #encrypt        = true
-  #}
+  backend "s3" {
+    bucket         = "my-project-dev-tfstate-0f40ad69"
+    key            = "global/terraform.tfstate"
+    region         = "eu-west-2"
+    dynamodb_table = "my-project-dev-tfstate-lock"
+    encrypt        = true
+  }
 }
 
 

@@ -20,13 +20,13 @@ trusted_ssh_cidr  = "0.0.0.0/0"
 instance_type              = "t3.micro"
 root_volume_size           = 30
 enable_detailed_monitoring = false
-asg_min_size         = 1
-asg_max_size         = 3
-asg_desired_capacity = 1
+asg_min_size               = 1
+asg_max_size               = 3
+asg_desired_capacity       = 1
 
 # ----- Observability ----------------------------------
 log_retention_days = 14
-alarm_email = "sanjogstudy@gmail.com"
-scaling_cooldown = 120
+alarm_email        = "sanjogstudy@gmail.com"
+scaling_cooldown   = 120
 cpu_high_threshold = 70
-cpu_low_threshold = 20
+cpu_low_threshold  = 20

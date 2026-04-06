@@ -370,7 +370,8 @@ Navigate to **Settings → Secrets and variables → Actions** and add:
 | `TF_VAR_project_name`   | `my-project`                |
 | `TF_VAR_environment`    | `dev`                       |
 
-<!-- Screenshot: GitHub → Actions tab showing a completed pipeline run with all steps green -->
+<img width="1897" height="856" alt="image" src="https://github.com/user-attachments/assets/14dc021b-77b1-46d8-b463-fe40814efd30" />
+
 
 ---
 
